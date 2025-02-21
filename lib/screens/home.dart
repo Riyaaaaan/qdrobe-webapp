@@ -117,7 +117,9 @@ class Home extends GetView<HomeController> {
 
   @override
   Widget build(BuildContext context) {
-    Get.put<HomeController>(HomeController());
+    // Ensure the controller is only put once
+    final HomeController controller =
+        Get.put<HomeController>(HomeController(), permanent: true);
 
     return PopScope(
       canPop: false,
@@ -148,6 +150,7 @@ class Home extends GetView<HomeController> {
       child: Scaffold(
         body: SafeArea(
           child: InAppWebView(
+            key: const Key('inAppWebView'), // Use a key to preserve state
             initialSettings: InAppWebViewSettings(
               useShouldOverrideUrlLoading: true,
               mediaPlaybackRequiresUserGesture: false,
