@@ -117,7 +117,6 @@ class Home extends GetView<HomeController> {
 
   @override
   Widget build(BuildContext context) {
-    // Ensure the controller is only put once
     final HomeController controller =
         Get.put<HomeController>(HomeController(), permanent: true);
 
@@ -149,62 +148,83 @@ class Home extends GetView<HomeController> {
       },
       child: Scaffold(
         body: SafeArea(
-          child: InAppWebView(
-            key: const Key('inAppWebView'), // Use a key to preserve state
-            initialSettings: InAppWebViewSettings(
-              useShouldOverrideUrlLoading: true,
-              mediaPlaybackRequiresUserGesture: false,
-              cacheEnabled: true,
-              clearCache: false,
-              useHybridComposition: true,
-              domStorageEnabled: true,
-              databaseEnabled: true,
-              allowsInlineMediaPlayback: true,
-              supportZoom: false,
-              javaScriptEnabled: true,
-            ),
-            onProgressChanged:
-                (InAppWebViewController inAppWebViewController, int progress) {
-              controller.setProgress(progress);
-            },
-            onWebViewCreated: (InAppWebViewController inAppWebViewController) {
-              controller.setWebViewController(inAppWebViewController);
-            },
-            shouldOverrideUrlLoading: (controller, navigationAction) async {
-              var uri = navigationAction.request.url!;
-              if (uri.toString().startsWith("https://qdrobe.in")) {
-                return NavigationActionPolicy.ALLOW;
-              }
-              return NavigationActionPolicy.CANCEL;
-            },
-            onLoadStart: (InAppWebViewController controller, WebUri? url) {
-              // Handle page load start
-            },
-            onLoadStop: (InAppWebViewController controller, WebUri? url) {
-              // Handle page load complete
-            },
-            onPermissionRequest: (InAppWebViewController controller,
-                PermissionRequest permissionRequest) async {
-              if (permissionRequest.resources
-                  .contains(PermissionResourceType.MICROPHONE)) {
-                final PermissionStatus permissionStatus =
-                    await Permission.microphone.request();
-                if (permissionStatus.isGranted) {
-                  return PermissionResponse(
-                    resources: permissionRequest.resources,
-                    action: PermissionResponseAction.GRANT,
+          child: Stack(
+            children: [
+              InAppWebView(
+                key: const Key('inAppWebView'),
+                initialSettings: InAppWebViewSettings(
+                  geolocationEnabled: true,
+                  javaScriptEnabled: true,
+                  useShouldOverrideUrlLoading: true,
+                  mediaPlaybackRequiresUserGesture: false,
+                  cacheEnabled: true,
+                  clearCache: false,
+                  useHybridComposition: true,
+                  domStorageEnabled: true,
+                  databaseEnabled: true,
+                  allowsInlineMediaPlayback: true,
+                  supportZoom: false,
+                ),
+                onProgressChanged:
+                    (InAppWebViewController inAppWebViewController,
+                        int progress) {
+                  controller.setProgress(progress);
+                },
+                onWebViewCreated:
+                    (InAppWebViewController inAppWebViewController) async {
+                  controller.setWebViewController(inAppWebViewController);
+                  await controller.checkAndRequestLocationPermission();
+                },
+                shouldOverrideUrlLoading: (controller, navigationAction) async {
+                  var uri = navigationAction.request.url!;
+                  if (uri.toString().startsWith("https://qdrobe.in")) {
+                    return NavigationActionPolicy.ALLOW;
+                  }
+                  return NavigationActionPolicy.CANCEL;
+                },
+                onLoadStart: (InAppWebViewController controller, WebUri? url) {
+                  // Handle page load start
+                },
+                onLoadStop: (InAppWebViewController controller, WebUri? url) {
+                  // Handle page load complete
+                },
+                onPermissionRequest: (InAppWebViewController controller,
+                    PermissionRequest permissionRequest) async {
+                  if (permissionRequest.resources
+                      .contains(PermissionResourceType.MICROPHONE)) {
+                    final status = await Permission.microphone.request();
+                    return PermissionResponse(
+                      resources: permissionRequest.resources,
+                      action: status.isGranted
+                          ? PermissionResponseAction.GRANT
+                          : PermissionResponseAction.DENY,
+                    );
+                  }
+                  return null;
+                },
+                onGeolocationPermissionsShowPrompt:
+                    (InAppWebViewController controller, String origin) async {
+                  final status = await Permission.location.request();
+                  return GeolocationPermissionShowPromptResponse(
+                    origin: origin,
+                    allow: status.isGranted,
+                    retain: true,
                   );
-                } else if (permissionStatus.isDenied) {
-                  return PermissionResponse(
-                    resources: permissionRequest.resources,
-                    action: PermissionResponseAction.DENY,
-                  );
-                }
-              }
-              return null;
-            },
-            initialUrlRequest:
-                URLRequest(url: WebUri.uri(Uri.parse("https://qdrobe.in"))),
+                },
+                initialUrlRequest:
+                    URLRequest(url: WebUri.uri(Uri.parse("https://qdrobe.in"))),
+              ),
+              Obx(
+                () => controller.progress.value < 1.0
+                    ? LinearProgressIndicator(
+                        value: controller.progress.value,
+                        backgroundColor: Colors.grey[200],
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(Colors.blue.shade400),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ],
           ),
         ),
       ),
@@ -214,14 +234,28 @@ class Home extends GetView<HomeController> {
 
 class HomeController extends GetxController {
   RxDouble progress = 0.0.obs;
-  setProgress(int newProgress) {
+  InAppWebViewController? _inAppWebViewController;
+
+  void setProgress(int newProgress) {
     progress.value = newProgress / 100;
   }
 
-  InAppWebViewController? _inAppWebViewController;
-
-  setWebViewController(InAppWebViewController controller) {
+  void setWebViewController(InAppWebViewController controller) {
     _inAppWebViewController = controller;
+  }
+
+  Future<bool> checkAndRequestLocationPermission() async {
+    final status = await Permission.location.status;
+    if (status.isGranted) {
+      return true;
+    }
+
+    if (status.isDenied) {
+      final result = await Permission.location.request();
+      return result.isGranted;
+    }
+
+    return false;
   }
 
   Future<String?> getCurrentUrl() async {
@@ -273,8 +307,14 @@ class HomeController extends GetxController {
   }
 
   @override
+  void onInit() {
+    super.onInit();
+    checkAndRequestLocationPermission();
+  }
+
+  @override
   void dispose() {
-    super.dispose();
     _inAppWebViewController?.dispose();
+    super.dispose();
   }
 }
