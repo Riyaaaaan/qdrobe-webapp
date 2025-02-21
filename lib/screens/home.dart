@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -31,7 +32,6 @@ class Home extends GetView<HomeController> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Icon at the top
                   Container(
                     padding: const EdgeInsets.all(15),
                     decoration: BoxDecoration(
@@ -45,7 +45,6 @@ class Home extends GetView<HomeController> {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  // Title
                   const Text(
                     'Exit App',
                     style: TextStyle(
@@ -54,7 +53,6 @@ class Home extends GetView<HomeController> {
                     ),
                   ),
                   const SizedBox(height: 15),
-                  // Message
                   const Text(
                     'Are you sure you want to exit?',
                     style: TextStyle(
@@ -64,11 +62,9 @@ class Home extends GetView<HomeController> {
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 25),
-                  // Buttons
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // Cancel Button
                       Expanded(
                         child: ElevatedButton(
                           onPressed: () => Get.back(result: false),
@@ -88,7 +84,6 @@ class Home extends GetView<HomeController> {
                         ),
                       ),
                       const SizedBox(width: 15),
-                      // Exit Button
                       Expanded(
                         child: ElevatedButton(
                           onPressed: () => Get.back(result: true),
@@ -126,16 +121,27 @@ class Home extends GetView<HomeController> {
 
     return PopScope(
       canPop: false,
-      onPopInvoked: (didPop) async {
+      onPopInvokedWithResult: (bool didPop, dynamic result) async {
         if (didPop) {
           return;
         }
 
-        final canGoBack = await controller.canGoBack();
-        if (!canGoBack) {
+        final currentUrl = await controller.getCurrentUrl();
+
+        if (currentUrl != null &&
+            (currentUrl == "https://qdrobe.in" ||
+                currentUrl == "https://qdrobe.in/")) {
           final shouldExit = await _showExitDialog();
           if (shouldExit) {
-            Navigator.of(context).pop();
+            await SystemNavigator.pop();
+          }
+        } else {
+          final canGoBack =
+              await controller._inAppWebViewController?.canGoBack() ?? false;
+          if (canGoBack) {
+            await controller.goBack();
+          } else {
+            await controller.loadUrl("https://qdrobe.in");
           }
         }
       },
@@ -215,15 +221,29 @@ class HomeController extends GetxController {
     _inAppWebViewController = controller;
   }
 
-  Future<bool> canGoBack() async {
+  Future<String?> getCurrentUrl() async {
+    if (_inAppWebViewController != null) {
+      final url = await _inAppWebViewController!.getUrl();
+      if (url != null) {
+        String urlString = url.toString();
+        if (urlString.endsWith("/")) {
+          urlString = urlString.substring(0, urlString.length - 1);
+        }
+        return urlString;
+      }
+    }
+    return null;
+  }
+
+  Future<void> goBack() async {
     if (_inAppWebViewController != null) {
       final canGoBack = await _inAppWebViewController!.canGoBack();
       if (canGoBack) {
         await _inAppWebViewController!.goBack();
-        return true;
+      } else {
+        await loadUrl("https://qdrobe.in");
       }
     }
-    return false;
   }
 
   Future<void> loadUrl(String url) async {
