@@ -1,8 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:qdrobe_app/utils/no_internet_widget.dart';
 
 class Home extends GetView<HomeController> {
   const Home({super.key});
@@ -148,83 +151,87 @@ class Home extends GetView<HomeController> {
       },
       child: Scaffold(
         body: SafeArea(
-          child: Stack(
-            children: [
-              InAppWebView(
-                key: const Key('inAppWebView'),
-                initialSettings: InAppWebViewSettings(
-                  geolocationEnabled: true,
-                  javaScriptEnabled: true,
-                  useShouldOverrideUrlLoading: true,
-                  mediaPlaybackRequiresUserGesture: false,
-                  cacheEnabled: true,
-                  clearCache: false,
-                  useHybridComposition: true,
-                  domStorageEnabled: true,
-                  databaseEnabled: true,
-                  allowsInlineMediaPlayback: true,
-                  supportZoom: false,
-                ),
-                onProgressChanged:
-                    (InAppWebViewController inAppWebViewController,
-                        int progress) {
-                  controller.setProgress(progress);
-                },
-                onWebViewCreated:
-                    (InAppWebViewController inAppWebViewController) async {
-                  controller.setWebViewController(inAppWebViewController);
-                  await controller.checkAndRequestLocationPermission();
-                },
-                shouldOverrideUrlLoading: (controller, navigationAction) async {
-                  var uri = navigationAction.request.url!;
-                  if (uri.toString().startsWith("https://qdrobe.in")) {
-                    return NavigationActionPolicy.ALLOW;
-                  }
-                  return NavigationActionPolicy.CANCEL;
-                },
-                onLoadStart: (InAppWebViewController controller, WebUri? url) {
-                  // Handle page load start
-                },
-                onLoadStop: (InAppWebViewController controller, WebUri? url) {
-                  // Handle page load complete
-                },
-                onPermissionRequest: (InAppWebViewController controller,
-                    PermissionRequest permissionRequest) async {
-                  if (permissionRequest.resources
-                      .contains(PermissionResourceType.MICROPHONE)) {
-                    final status = await Permission.microphone.request();
-                    return PermissionResponse(
-                      resources: permissionRequest.resources,
-                      action: status.isGranted
-                          ? PermissionResponseAction.GRANT
-                          : PermissionResponseAction.DENY,
-                    );
-                  }
-                  return null;
-                },
-                onGeolocationPermissionsShowPrompt:
-                    (InAppWebViewController controller, String origin) async {
-                  final status = await Permission.location.request();
-                  return GeolocationPermissionShowPromptResponse(
-                    origin: origin,
-                    allow: status.isGranted,
-                    retain: true,
-                  );
-                },
-                initialUrlRequest:
-                    URLRequest(url: WebUri.uri(Uri.parse("https://qdrobe.in"))),
-              ),
-              Obx(
-                () => controller.progress.value < 1.0
-                    ? LinearProgressIndicator(
-                        value: controller.progress.value,
-                        backgroundColor: Colors.grey[200],
-                        valueColor:
-                            AlwaysStoppedAnimation<Color>(Colors.blue.shade400),
-                      )
-                    : const SizedBox.shrink(),
-              ),
-            ],
+          child: Obx(
+            () => Stack(
+              children: [
+                if (controller.hasInternet.value)
+                  InAppWebView(
+                    key: const Key('inAppWebView'),
+                    initialSettings: InAppWebViewSettings(
+                      geolocationEnabled: true,
+                      javaScriptEnabled: true,
+                      useShouldOverrideUrlLoading: true,
+                      mediaPlaybackRequiresUserGesture: false,
+                      cacheEnabled: true,
+                      clearCache: false,
+                      useHybridComposition: true,
+                      domStorageEnabled: true,
+                      databaseEnabled: true,
+                      allowsInlineMediaPlayback: true,
+                      supportZoom: false,
+                    ),
+                    onWebViewCreated:
+                        (InAppWebViewController inAppWebViewController) async {
+                      controller.setWebViewController(inAppWebViewController);
+                      await controller.checkAndRequestLocationPermission();
+                    },
+                    shouldOverrideUrlLoading:
+                        (controller, navigationAction) async {
+                      var uri = navigationAction.request.url!;
+                      if (uri.toString().startsWith("https://qdrobe.in")) {
+                        return NavigationActionPolicy.ALLOW;
+                      }
+                      return NavigationActionPolicy.CANCEL;
+                    },
+                    onLoadStart: (InAppWebViewController webViewController,
+                        WebUri? url) {
+                      // Handle page load start
+                    },
+                    onLoadStop: (InAppWebViewController webViewController,
+                        WebUri? url) {
+                      // Handle page load complete
+                    },
+                    onReceivedError: (InAppWebViewController webViewController,
+                        WebResourceRequest request, WebResourceError error) {
+                      controller.checkConnectivity();
+                    },
+                    onPermissionRequest:
+                        (InAppWebViewController webViewController,
+                            PermissionRequest permissionRequest) async {
+                      if (permissionRequest.resources
+                          .contains(PermissionResourceType.MICROPHONE)) {
+                        final status = await Permission.microphone.request();
+                        return PermissionResponse(
+                          resources: permissionRequest.resources,
+                          action: status.isGranted
+                              ? PermissionResponseAction.GRANT
+                              : PermissionResponseAction.DENY,
+                        );
+                      }
+                      return null;
+                    },
+                    onGeolocationPermissionsShowPrompt:
+                        (InAppWebViewController webViewController,
+                            String origin) async {
+                      final status = await Permission.location.request();
+                      return GeolocationPermissionShowPromptResponse(
+                        origin: origin,
+                        allow: status.isGranted,
+                        retain: true,
+                      );
+                    },
+                    initialUrlRequest: URLRequest(
+                      url: WebUri.uri(
+                        Uri.parse("https://qdrobe.in"),
+                      ),
+                    ),
+                  ),
+                if (!controller.hasInternet.value)
+                  NoInternetWidget(
+                    onRetry: () => controller.retryConnection(),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -233,12 +240,8 @@ class Home extends GetView<HomeController> {
 }
 
 class HomeController extends GetxController {
-  RxDouble progress = 0.0.obs;
+  RxBool hasInternet = true.obs;
   InAppWebViewController? _inAppWebViewController;
-
-  void setProgress(int newProgress) {
-    progress.value = newProgress / 100;
-  }
 
   void setWebViewController(InAppWebViewController controller) {
     _inAppWebViewController = controller;
@@ -256,6 +259,26 @@ class HomeController extends GetxController {
     }
 
     return false;
+  }
+
+  Future<bool> checkInternetConnection() async {
+    try {
+      final result = await InternetAddress.lookup('google.com');
+      return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+    } on SocketException catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> checkConnectivity() async {
+    hasInternet.value = await checkInternetConnection();
+  }
+
+  void retryConnection() async {
+    await checkConnectivity();
+    if (hasInternet.value) {
+      await reload();
+    }
   }
 
   Future<String?> getCurrentUrl() async {
@@ -309,6 +332,7 @@ class HomeController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    checkConnectivity();
     checkAndRequestLocationPermission();
   }
 
