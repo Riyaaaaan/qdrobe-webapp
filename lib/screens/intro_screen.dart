@@ -1,184 +1,150 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:qdrobe_app/const/const.dart';
 import 'package:qdrobe_app/screens/home.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class IntroScreen extends StatelessWidget {
   const IntroScreen({super.key});
 
-  void _onGetStarted() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('showHome', true);
-    Get.off(() => const Home());
+  static const double _imageHeight = 220.0;
+  static const double _imageWidth = 180.0;
+  static const double _imageRotation = 0.1;
+  static const double _horizontalOffset = -60.0;
+
+  // Extracted text styles for reusability and consistency
+  static const TextStyle _titleStyle = TextStyle(
+    fontSize: 32,
+    fontWeight: FontWeight.bold,
+  );
+
+  static const TextStyle _subtitleStyle = TextStyle(
+    fontSize: 20,
+    fontWeight: FontWeight.w500,
+  );
+
+  static const TextStyle _bodyStyle = TextStyle(
+    fontSize: 16,
+  );
+
+  static const TextStyle _buttonTextStyle = TextStyle(
+    fontSize: 18,
+    fontWeight: FontWeight.w600,
+  );
+
+  Future<void> _onGetStarted() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('showHome', true);
+      Get.off(() => const Home(), transition: Transition.rightToLeft);
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Failed to save preferences',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    // Get screen dimensions
-    final screenHeight = MediaQuery.of(context).size.height;
-    final screenWidth = MediaQuery.of(context).size.width;
-
-    // Calculate responsive dimensions
-    final imageHeight = screenHeight * 0.25;
-    final imageWidth = screenWidth * 0.45;
-    final horizontalPadding = screenWidth * 0.06;
-    final verticalSpacing = screenHeight * 0.02;
-
-    return Scaffold(
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              // First Row of Images
-              SizedBox(
-                height: imageHeight,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  physics: const NeverScrollableScrollPhysics(),
-                  padding: EdgeInsets.zero,
-                  children: [
-                    Transform.translate(
-                      offset: Offset(-screenWidth * 0.15, 0),
-                      child: Row(
-                        children: [
-                          _buildRotatedImage(
-                              imageUrl: 'url1',
-                              width: imageWidth,
-                              height: imageHeight),
-                          SizedBox(width: screenWidth * 0.025),
-                          _buildRotatedImage(
-                              imageUrl: 'url2',
-                              width: imageWidth,
-                              height: imageHeight),
-                          SizedBox(width: screenWidth * 0.025),
-                          _buildRotatedImage(
-                              imageUrl: 'url3',
-                              width: imageWidth,
-                              height: imageHeight),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+  Widget _buildImageRow(List<String> images) {
+    return Container(
+      height: _imageHeight,
+      margin: const EdgeInsets.only(top: 20),
+      child: ShaderMask(
+        shaderCallback: (Rect bounds) {
+          return LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [Colors.white, Colors.white.withOpacity(0.8)],
+            stops: const [0.8, 1.0],
+          ).createShader(bounds);
+        },
+        blendMode: BlendMode.dstIn,
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          physics: const NeverScrollableScrollPhysics(),
+          padding: EdgeInsets.zero,
+          children: [
+            Transform.translate(
+              offset: const Offset(_horizontalOffset, 0),
+              child: Row(
+                children: images
+                    .map((image) => Padding(
+                          padding: const EdgeInsets.only(right: 10),
+                          child: Transform.rotate(
+                            angle: _imageRotation,
+                            child: ImageContainer(imageUrl: image),
+                          ),
+                        ))
+                    .toList(),
               ),
-              SizedBox(height: verticalSpacing),
-
-              // Second Row of Images
-              SizedBox(
-                height: imageHeight,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  physics: const NeverScrollableScrollPhysics(),
-                  padding: EdgeInsets.zero,
-                  children: [
-                    Transform.translate(
-                      offset: Offset(-screenWidth * 0.15, 0),
-                      child: Row(
-                        children: [
-                          _buildRotatedImage(
-                              imageUrl: 'url4',
-                              width: imageWidth,
-                              height: imageHeight),
-                          SizedBox(width: screenWidth * 0.025),
-                          _buildRotatedImage(
-                              imageUrl: 'url5',
-                              width: imageWidth,
-                              height: imageHeight),
-                          SizedBox(width: screenWidth * 0.025),
-                          _buildRotatedImage(
-                              imageUrl: 'url6',
-                              width: imageWidth,
-                              height: imageHeight),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              SizedBox(height: verticalSpacing * 2),
-
-              // Text Content
-              Text(
-                'QuickStyl',
-                style: TextStyle(
-                  fontSize: screenWidth * 0.08,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              SizedBox(height: verticalSpacing),
-
-              Text(
-                'Fashion in minutes',
-                style: TextStyle(
-                  fontSize: screenWidth * 0.05,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              SizedBox(height: verticalSpacing),
-
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-                child: Text(
-                  'Indulge in a wardrobe that effortlessly blends sophistication with comfort, ensuring every outfit resonates with your unique flair delivered to your doorstep in minutes',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: screenWidth * 0.04,
-                  ),
-                ),
-              ),
-
-              SizedBox(height: verticalSpacing * 2),
-
-              // Button
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-                child: ElevatedButton(
-                  onPressed: _onGetStarted,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black,
-                    foregroundColor: Colors.white,
-                    minimumSize: Size(double.infinity, screenHeight * 0.07),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Get Started',
-                        style: TextStyle(
-                          fontSize: screenWidth * 0.045,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      SizedBox(width: screenWidth * 0.02),
-                      const Icon(Icons.arrow_forward_rounded),
-                    ],
-                  ),
-                ),
-              ),
-              SizedBox(height: verticalSpacing * 2),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildRotatedImage({
-    required String imageUrl,
-    required double width,
-    required double height,
-  }) {
-    return Transform.rotate(
-      angle: 0.1,
-      child: ImageContainer(
-        imageUrl: imageUrl,
-        width: width,
-        height: height,
+  Widget _buildContentSection() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+      child: Column(
+        children: [
+          const Text('QDrobe', style: _titleStyle),
+          const SizedBox(height: 8),
+          const Text('Fashion in minutes', style: _subtitleStyle),
+          const SizedBox(height: 16),
+          const Text(
+            'Indulge in a wardrobe that effortlessly blends sophistication with comfort, ensuring every outfit resonates with your unique flair delivered to your doorstep in minutes',
+            textAlign: TextAlign.center,
+            style: _bodyStyle,
+          ),
+          const SizedBox(height: 40),
+          _buildGetStartedButton(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGetStartedButton() {
+    return ElevatedButton(
+      onPressed: _onGetStarted,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        minimumSize: const Size(double.infinity, 56),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(30),
+        ),
+        elevation: 0,
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: const [
+          Text('Get Started', style: _buttonTextStyle),
+          SizedBox(width: 8),
+          Icon(Icons.arrow_forward_rounded, color: Colors.white),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              _buildImageRow([img1, img2, img3]),
+              const SizedBox(height: 24),
+              _buildImageRow([img2, img3, img4]),
+              const SizedBox(height: 24),
+              _buildContentSection(),
+              const SizedBox(height: 24),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -186,26 +152,29 @@ class IntroScreen extends StatelessWidget {
 
 class ImageContainer extends StatelessWidget {
   final String imageUrl;
-  final double width;
-  final double height;
 
-  const ImageContainer({
-    super.key,
-    required this.imageUrl,
-    required this.width,
-    required this.height,
-  });
+  const ImageContainer({super.key, required this.imageUrl});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: width,
-      height: height,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        image: DecorationImage(
-          image: NetworkImage(imageUrl),
-          fit: BoxFit.cover,
+    return Hero(
+      tag: imageUrl,
+      child: Container(
+        width: IntroScreen._imageWidth,
+        height: IntroScreen._imageHeight,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          image: DecorationImage(
+            image: AssetImage(imageUrl),
+            fit: BoxFit.cover,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
       ),
     );
