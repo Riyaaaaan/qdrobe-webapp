@@ -46,7 +46,7 @@ class IntroScreen extends StatelessWidget {
     }
   }
 
-  Widget _buildImageRow(List<String> images) {
+  Widget _buildImageRow(List<String> images, int rowIndex) {
     return Container(
       height: _imageHeight,
       margin: const EdgeInsets.only(top: 20),
@@ -69,11 +69,16 @@ class IntroScreen extends StatelessWidget {
               offset: const Offset(_horizontalOffset, 0),
               child: Row(
                 children: images
-                    .map((image) => Padding(
+                    .asMap()
+                    .entries
+                    .map((entry) => Padding(
                           padding: const EdgeInsets.only(right: 10),
                           child: Transform.rotate(
                             angle: _imageRotation,
-                            child: ImageContainer(imageUrl: image),
+                            child: ImageContainer(
+                              imageUrl: entry.value,
+                              index: rowIndex * images.length + entry.key,
+                            ),
                           ),
                         ))
                     .toList(),
@@ -136,9 +141,9 @@ class IntroScreen extends StatelessWidget {
         child: SingleChildScrollView(
           child: Column(
             children: [
-              _buildImageRow([img1, img2, img3]),
+              _buildImageRow([img1, img2, img3], 0),
               const SizedBox(height: 24),
-              _buildImageRow([img2, img3, img4]),
+              _buildImageRow([img2, img3, img4], 1),
               const SizedBox(height: 24),
               _buildContentSection(),
               const SizedBox(height: 24),
@@ -152,13 +157,18 @@ class IntroScreen extends StatelessWidget {
 
 class ImageContainer extends StatelessWidget {
   final String imageUrl;
+  final int index;
 
-  const ImageContainer({super.key, required this.imageUrl});
+  const ImageContainer({
+    super.key,
+    required this.imageUrl,
+    required this.index,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Hero(
-      tag: imageUrl,
+      tag: '$imageUrl-$index',
       child: Container(
         width: IntroScreen._imageWidth,
         height: IntroScreen._imageHeight,
