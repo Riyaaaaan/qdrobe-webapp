@@ -7,6 +7,32 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:qdrobe_app/utils/no_internet_widget.dart';
 
+class PermissionService {
+  static Future<bool> requestPermission(Permission permission) async {
+    try {
+      final status = await permission.status;
+
+      if (status.isGranted) return true;
+
+      if (status.isDenied || status.isPermanentlyDenied) {
+        final result = await permission.request();
+
+        if (result.isPermanentlyDenied) {
+          await openAppSettings();
+          return false;
+        }
+
+        return result.isGranted;
+      }
+
+      return false;
+    } catch (e) {
+      print('Permission request error for ${permission.toString()}: $e');
+      return false;
+    }
+  }
+}
+
 class Home extends GetView<HomeController> {
   const Home({super.key});
 
@@ -173,7 +199,7 @@ class Home extends GetView<HomeController> {
                     onWebViewCreated:
                         (InAppWebViewController inAppWebViewController) async {
                       controller.setWebViewController(inAppWebViewController);
-                      await controller.checkAndRequestLocationPermission();
+                      await controller.initializePermissions();
                     },
                     shouldOverrideUrlLoading:
                         (controller, navigationAction) async {
@@ -183,27 +209,17 @@ class Home extends GetView<HomeController> {
                       }
                       return NavigationActionPolicy.CANCEL;
                     },
-                    onLoadStart: (InAppWebViewController webViewController,
-                        WebUri? url) {
-                      // Handle page load start
-                    },
-                    onLoadStop: (InAppWebViewController webViewController,
-                        WebUri? url) {
-                      // Handle page load complete
-                    },
-                    onReceivedError: (InAppWebViewController webViewController,
-                        WebResourceRequest request, WebResourceError error) {
-                      controller.checkConnectivity();
-                    },
                     onPermissionRequest:
                         (InAppWebViewController webViewController,
                             PermissionRequest permissionRequest) async {
                       if (permissionRequest.resources
                           .contains(PermissionResourceType.MICROPHONE)) {
-                        final status = await Permission.microphone.request();
+                        final microphoneGranted =
+                            await PermissionService.requestPermission(
+                                Permission.microphone);
                         return PermissionResponse(
                           resources: permissionRequest.resources,
-                          action: status.isGranted
+                          action: microphoneGranted
                               ? PermissionResponseAction.GRANT
                               : PermissionResponseAction.DENY,
                         );
@@ -213,10 +229,12 @@ class Home extends GetView<HomeController> {
                     onGeolocationPermissionsShowPrompt:
                         (InAppWebViewController webViewController,
                             String origin) async {
-                      final status = await Permission.location.request();
+                      final locationGranted =
+                          await PermissionService.requestPermission(
+                              Permission.location);
                       return GeolocationPermissionShowPromptResponse(
                         origin: origin,
-                        allow: status.isGranted,
+                        allow: locationGranted,
                         retain: true,
                       );
                     },
@@ -241,24 +259,29 @@ class Home extends GetView<HomeController> {
 
 class HomeController extends GetxController {
   RxBool hasInternet = true.obs;
+  RxBool isPermissionRequestInProgress = false.obs;
   InAppWebViewController? _inAppWebViewController;
 
   void setWebViewController(InAppWebViewController controller) {
     _inAppWebViewController = controller;
   }
 
-  Future<bool> checkAndRequestLocationPermission() async {
-    final status = await Permission.location.status;
-    if (status.isGranted) {
-      return true;
-    }
+  Future<void> initializePermissions() async {
+    if (isPermissionRequestInProgress.value) return;
 
-    if (status.isDenied) {
-      final result = await Permission.location.request();
-      return result.isGranted;
-    }
+    try {
+      isPermissionRequestInProgress.value = true;
 
-    return false;
+      // Request location permission
+      await PermissionService.requestPermission(Permission.location);
+
+      // Add other necessary permissions here
+      await PermissionService.requestPermission(Permission.camera);
+    } catch (e) {
+      print('Permission initialization error: $e');
+    } finally {
+      isPermissionRequestInProgress.value = false;
+    }
   }
 
   Future<bool> checkInternetConnection() async {
@@ -333,7 +356,6 @@ class HomeController extends GetxController {
   void onInit() {
     super.onInit();
     checkConnectivity();
-    checkAndRequestLocationPermission();
   }
 
   @override
